@@ -4,6 +4,7 @@ import speech from "@google-cloud/speech"
 import dotenv from "dotenv"
 import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import ffmpeg from 'fluent-ffmpeg';
+import MarkdownIt from 'markdown-it';
 
 dotenv.config();
 ffmpeg.setFfmpegPath(ffmpegPath.path);
@@ -15,7 +16,7 @@ const client = new speech.SpeechClient({
 
 
 //チャンネル数を一つに変換
-async function convertStereoToMono(inputPath: string, outputPath: string): Promise<void>{
+export async function convertStereoToMono(inputPath: string, outputPath: string): Promise<void>{
   return new Promise((resolve, reject) => {
     ffmpeg(inputPath)
       .audioChannels(1)
@@ -31,7 +32,7 @@ async function convertStereoToMono(inputPath: string, outputPath: string): Promi
 
 
 // 音声ファイルをテキストに変換する関数
-async function transcribeAudio(audioFilePath: string) {
+export async function transcribeAudio(audioFilePath: string) {
   //引数の先にあるファイルを開く
   const audioFile = fs.readFileSync(audioFilePath);
   const audioBytes = audioFile.toString("base64");
@@ -58,7 +59,7 @@ async function transcribeAudio(audioFilePath: string) {
 }
 
 // OpenAI APIを使用してテキストを処理する関数
-async function processTextWithOpenAI(text: any) {
+export async function processTextWithOpenAI(text: any) {
   const apiKey = process.env.OPEN_AI_APIKEY 
   const apiUrl = "https://api.openai.com/v1/engines/davinci-codex/completions";
 
@@ -81,10 +82,17 @@ console.log(processedText)
 return processedText;
 }
 
+export function generateMarkdown(text: string, outputPath: string): void {
+  const md = new MarkdownIt();
+  const markdown = md.render(text);
+  fs.writeFileSync(outputPath, markdown, 'utf-8');
+}
+
 // メイン関数
 async function main() {
-  const inputPath = "./ohayo.wav"; // 音声ファイルへのパスに置き換えてください
-  const outputPath = "./aaa.wav"
+  const inputPath = "./input_wavs/g_03.wav";
+  const outputPath = "./output_wavs/g3.wav"
+  const markdownOutputPath = "./output_mds/output.md"; // Markdownファイルの出力先を指定
   
   // 音声ファイルのチャンネルを１つに変換する
   await convertStereoToMono(inputPath, outputPath)
@@ -95,6 +103,7 @@ async function main() {
 
   // OpenAI APIを使用してテキストを処理
   const processedText = await processTextWithOpenAI(text);
+  generateMarkdown(processedText, markdownOutputPath);
   console.log("Processed Text:", processedText);
 }
 

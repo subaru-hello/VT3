@@ -2,15 +2,37 @@ import axios from "axios"
 import fs from "fs"
 import speech from "@google-cloud/speech"
 import dotenv from "dotenv"
+import ffmpegPath from '@ffmpeg-installer/ffmpeg';
+import ffmpeg from 'fluent-ffmpeg';
+
 dotenv.config();
+ffmpeg.setFfmpegPath(ffmpegPath.path);
+
 // Google Cloud Speech-to-Text APIの設定
 const client = new speech.SpeechClient({
   keyFilename: "./keys/credential.json"
 })
 
+
+//チャンネル数を一つに変換
+async function convertStereoToMono(inputPath: string, outputPath: string): Promise<void>{
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .audioChannels(1)
+      .on('error', (error: any) => {
+        reject(error);
+      })
+      .on('end', () => {
+        resolve();
+      })
+      .save(outputPath);
+  });
+}
+
+
 // 音声ファイルをテキストに変換する関数
 async function transcribeAudio(audioFilePath: string) {
-  //
+  //引数の先にあるファイルを開く
   const audioFile = fs.readFileSync(audioFilePath);
   const audioBytes = audioFile.toString("base64");
 
@@ -19,16 +41,19 @@ async function transcribeAudio(audioFilePath: string) {
       content: audioBytes,
     },
     config: {
+      enableAutomaticPunctuation: true,
+      model: "default",
       encoding: "LINEAR16",
       sampleRateHertz: 44100,
       languageCode: "ja-JP",
     },
   };
-
   const [response]: any = await client.recognize(request);
+
   const transcription = response.results
     .map((result: { alternatives: { transcript: any; }[]; }) => result.alternatives[0].transcript)
     .join("\n");
+    console.log(transcription)
   return transcription;
 }
 
@@ -52,15 +77,20 @@ const data = {
 
 const response = await axios.post(apiUrl, data, { headers });
 const processedText = response.data.choices[0].text;
+console.log(processedText)
 return processedText;
 }
 
 // メイン関数
 async function main() {
-  const audioFilePath = "./ohayo.wav"; // 音声ファイルへのパスに置き換えてください
-
+  const inputPath = "./ohayo.wav"; // 音声ファイルへのパスに置き換えてください
+  const outputPath = "./aaa.wav"
+  
+  // 音声ファイルのチャンネルを１つに変換する
+  await convertStereoToMono(inputPath, outputPath)
+  
   // 音声をテキストに変換
-  const text = await transcribeAudio(audioFilePath);
+  const text = await transcribeAudio(outputPath);
   console.log("Transcribed Text:", text);
 
   // OpenAI APIを使用してテキストを処理

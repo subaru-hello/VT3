@@ -16,15 +16,34 @@ const axios_1 = __importDefault(require("axios"));
 const fs_1 = __importDefault(require("fs"));
 const speech_1 = __importDefault(require("@google-cloud/speech"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const ffmpeg_1 = __importDefault(require("@ffmpeg-installer/ffmpeg"));
+const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
 dotenv_1.default.config();
+fluent_ffmpeg_1.default.setFfmpegPath(ffmpeg_1.default.path);
 // Google Cloud Speech-to-Text APIの設定
 const client = new speech_1.default.SpeechClient({
     keyFilename: "./keys/credential.json"
 });
+//チャンネル数を一つに変換
+function convertStereoToMono(inputPath, outputPath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve, reject) => {
+            (0, fluent_ffmpeg_1.default)(inputPath)
+                .audioChannels(1)
+                .on('error', (error) => {
+                reject(error);
+            })
+                .on('end', () => {
+                resolve();
+            })
+                .save(outputPath);
+        });
+    });
+}
 // 音声ファイルをテキストに変換する関数
 function transcribeAudio(audioFilePath) {
     return __awaiter(this, void 0, void 0, function* () {
-        //
+        //引数の先にあるファイルを開く
         const audioFile = fs_1.default.readFileSync(audioFilePath);
         const audioBytes = audioFile.toString("base64");
         const request = {
@@ -32,6 +51,8 @@ function transcribeAudio(audioFilePath) {
                 content: audioBytes,
             },
             config: {
+                enableAutomaticPunctuation: true,
+                model: "default",
                 encoding: "LINEAR16",
                 sampleRateHertz: 44100,
                 languageCode: "ja-JP",
@@ -41,6 +62,7 @@ function transcribeAudio(audioFilePath) {
         const transcription = response.results
             .map((result) => result.alternatives[0].transcript)
             .join("\n");
+        console.log(transcription);
         return transcription;
     });
 }
@@ -62,15 +84,19 @@ function processTextWithOpenAI(text) {
         };
         const response = yield axios_1.default.post(apiUrl, data, { headers });
         const processedText = response.data.choices[0].text;
+        console.log(processedText);
         return processedText;
     });
 }
 // メイン関数
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
-        const audioFilePath = "./ohayo.wav"; // 音声ファイルへのパスに置き換えてください
+        const inputPath = "./ohayo.wav"; // 音声ファイルへのパスに置き換えてください
+        const outputPath = "./aaa.wav";
+        // 音声ファイルのチャンネルを１つに変換する
+        yield convertStereoToMono(inputPath, outputPath);
         // 音声をテキストに変換
-        const text = yield transcribeAudio(audioFilePath);
+        const text = yield transcribeAudio(outputPath);
         console.log("Transcribed Text:", text);
         // OpenAI APIを使用してテキストを処理
         const processedText = yield processTextWithOpenAI(text);
